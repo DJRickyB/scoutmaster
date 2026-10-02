@@ -44,16 +44,6 @@ The **balance collection** path is a **best-effort, completely untested placehol
 - Operates only on `advancements.scouting.org` with your existing login.
 - Do not commit HAR files or session exports; they contain live tokens and member PII.
 
-## Development
-
-Manifest V3: `content.js` + page-injected `injected.js` for API calls, `popup.html` / `popup.js` for UI.
-
-Push to GitHub (this repo uses a dedicated SSH key):
-
 ```bash
 GIT_SSH_COMMAND='ssh -i ~/.ssh/djrickyb -o IdentitiesOnly=yes' git push
 ```
-
-## License
-
-Private / troop use unless otherwise noted by the repository owner.
