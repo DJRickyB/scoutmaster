@@ -1,11 +1,19 @@
+import { detectPageContext, modeLabel, resolveAppPath } from "./lib/page-context.js";
 import {
+  BALANCE_DEFAULT_BODY,
+  BALANCE_DEFAULT_SUBJECT,
   DEFAULT_BODY,
   DEFAULT_SUBJECT,
-  TEMPLATE_HELP,
+  STORAGE_KEY_BALANCE,
+  STORAGE_KEY_RSVP,
+  TEMPLATE_HELP_BALANCE,
+  TEMPLATE_HELP_RSVP,
+  TEMPLATE_RECIPIENT_NOTE,
   renderTemplate,
 } from "./lib/template.js";
 
-const STORAGE_KEY = "emailTemplate";
+/** @type {'event' | 'balances' | 'general'} */
+let pageMode = "general";
 
 /** @type {Array<Record<string, unknown>>} */
 let lastPeople = [];
@@ -15,77 +23,91 @@ let mailQueueIndex = 0;
 
 const $ = (id) => document.getElementById(id);
 
-const subjectEl = $("subject");
-const bodyEl = $("body");
-const placeholderHelp = $("placeholderHelp");
-const statusEl = $("status");
 const resultsSection = $("resultsSection");
 const resultsTitle = $("resultsTitle");
 const recipientList = $("recipientList");
-
-placeholderHelp.textContent = `Placeholders: ${TEMPLATE_HELP}`;
-
-async function loadTemplate() {
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
-  const t = stored[STORAGE_KEY] ?? {};
-  subjectEl.value = t.subject ?? DEFAULT_SUBJECT;
-  bodyEl.value = t.body ?? DEFAULT_BODY;
-}
-
-async function saveTemplate() {
-  await chrome.storage.local.set({
-    [STORAGE_KEY]: {
-      subject: subjectEl.value,
-      body: bodyEl.value,
-    },
-  });
-  setStatus("Template saved.", "ok");
-}
-
-async function previewWithMyInfo() {
-  const previewSection = $("previewSection");
-  setStatus("Loading your profile…");
-
-  try {
-    const tab = await getActiveTab();
-    if (!tab.url?.includes("advancements.scouting.org")) {
-      throw new Error("Open ScoutBook+ in this tab to detect your profile.");
-    }
-
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      type: "GET_MY_TEMPLATE_VARS",
-      payload: {},
-    });
-
-    if (!response?.ok) {
-      throw new Error(response?.error || "Could not load profile.");
-    }
-
-    const { vars } = response.result;
-    const subject = renderTemplate(subjectEl.value, vars);
-    const body = renderTemplate(bodyEl.value, vars);
-
-    $("previewAs").textContent = vars.email
-      ? `Filled with your profile: ${vars.fullName} <${vars.email}>`
-      : `Filled with your profile: ${vars.fullName}`;
-    $("previewSubject").textContent = subject;
-    $("previewBody").textContent = body;
-    previewSection.classList.remove("hidden");
-
-    const eventNote = vars.eventName
-      ? ` Event: ${vars.eventName}.`
-      : " Open an event page to fill event placeholders.";
-    setStatus(`Preview updated.${eventNote}`, "ok");
-  } catch (err) {
-    previewSection.classList.add("hidden");
-    const msg = err instanceof Error ? err.message : String(err);
-    setStatus(msg, "error");
-  }
-}
+const statusEl = $("status");
 
 function setStatus(text, kind = "") {
   statusEl.textContent = text;
   statusEl.className = `status ${kind}`.trim();
+}
+
+function activeTemplateFields() {
+  if (pageMode === "balances") {
+    return { subject: $("subjectBalance"), body: $("bodyBalance") };
+  }
+  return { subject: $("subjectRsvp"), body: $("bodyRsvp") };
+}
+
+function initStaticCopy() {
+  $("placeholderHelpRsvp").textContent = `Placeholders: ${TEMPLATE_HELP_RSVP}`;
+  $("placeholderHelpBalance").textContent = `Placeholders: ${TEMPLATE_HELP_BALANCE}`;
+  $("templateRecipientNoteRsvp").textContent = TEMPLATE_RECIPIENT_NOTE;
+  $("templateRecipientNoteBalance").textContent = TEMPLATE_RECIPIENT_NOTE;
+}
+
+async function loadTemplates() {
+  const stored = await chrome.storage.local.get([
+    STORAGE_KEY_RSVP,
+    STORAGE_KEY_BALANCE,
+    "emailTemplate",
+  ]);
+
+  if (!stored[STORAGE_KEY_RSVP] && stored.emailTemplate) {
+    await chrome.storage.local.set({
+      [STORAGE_KEY_RSVP]: stored.emailTemplate,
+    });
+  }
+
+  const rsvp = stored[STORAGE_KEY_RSVP] ?? {};
+  const balance = stored[STORAGE_KEY_BALANCE] ?? {};
+
+  $("subjectRsvp").value = rsvp.subject ?? DEFAULT_SUBJECT;
+  $("bodyRsvp").value = rsvp.body ?? DEFAULT_BODY;
+  $("subjectBalance").value = balance.subject ?? BALANCE_DEFAULT_SUBJECT;
+  $("bodyBalance").value = balance.body ?? BALANCE_DEFAULT_BODY;
+}
+
+async function saveTemplate(mode) {
+  const isBalance = mode === "balance";
+  const key = isBalance ? STORAGE_KEY_BALANCE : STORAGE_KEY_RSVP;
+  const subject = isBalance ? $("subjectBalance") : $("subjectRsvp");
+  const body = isBalance ? $("bodyBalance") : $("bodyRsvp");
+
+  await chrome.storage.local.set({
+    [key]: { subject: subject.value, body: body.value },
+  });
+  setStatus("Template saved.", "ok");
+}
+
+function applyUiMode(context) {
+  const { mode, eventId } = context;
+  pageMode = mode;
+
+  document.body.dataset.mode = mode;
+  document.title = modeLabel(mode);
+
+  const onEvent = mode === "event";
+  const onBalances = mode === "balances";
+
+  $("idlePanel").classList.toggle("hidden", onEvent || onBalances);
+  $("rsvpTool").classList.toggle("hidden", !onEvent);
+  $("balanceTool").classList.toggle("hidden", !onBalances);
+
+  if (onEvent) {
+    $("rsvpContextHint").textContent = eventId
+      ? `Event ${eventId} — invitees with no RSVP (rsvpCode empty).`
+      : "This event — invitees with no RSVP.";
+  }
+
+  if (!onEvent && !onBalances) {
+    $("idleHint").textContent =
+      "Open a ScoutBook+ event page for RSVP reminders, or Unit Payment Logs / Balance Messaging for balance collection.";
+  }
+
+  $("previewSection").classList.add("hidden");
+  resultsSection.classList.add("hidden");
 }
 
 function getActiveTab() {
@@ -94,6 +116,46 @@ function getActiveTab() {
     if (!tab?.id) throw new Error("No active tab.");
     return tab;
   });
+}
+
+async function refreshPageContext() {
+  try {
+    const tab = await getActiveTab();
+    if (!tab.url?.includes("advancements.scouting.org")) {
+      applyUiMode({ mode: "general", eventId: null, path: "" });
+      setStatus("Open ScoutBook+ in this tab.", "error");
+      return;
+    }
+
+    let context = null;
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        type: "GET_PAGE_CONTEXT",
+        payload: {},
+      });
+      if (response?.ok && response.result) {
+        context = response.result;
+      }
+    } catch {
+      /* content script may be stale */
+    }
+
+    if (!context) {
+      const path = resolveAppPath(tab.url);
+      context = detectPageContext(path);
+    }
+
+    applyUiMode(context);
+
+    if (context.mode === "event" || context.mode === "balances") {
+      setStatus(`Ready — ${modeLabel(context.mode)}.`, "ok");
+    } else {
+      setStatus("Navigate to an event or Unit Payment Logs.", "");
+    }
+  } catch {
+    applyUiMode({ mode: "general", eventId: null, path: "" });
+    setStatus("Refresh the ScoutBook+ tab, then reopen the extension.", "error");
+  }
 }
 
 function countRecipientEmails(people) {
@@ -123,22 +185,63 @@ function buildMailQueue(people) {
 function setScanButtonsDisabled(disabled) {
   $("scanYouth").disabled = disabled;
   $("scanAll").disabled = disabled;
+  $("scanBalances").disabled = disabled;
 }
 
-async function scan(audience) {
-  setStatus("Scanning…");
+function sendPreviewLabel(entry) {
+  const name = entry.person.fullName || entry.person.firstName;
+  const role =
+    entry.role === "parent"
+      ? "parent"
+      : entry.role === "scout"
+        ? "scout"
+        : "recipient";
+  return `${name} → ${entry.email} (${role})`;
+}
+
+function populateSendPreviewTargets() {
+  const select = $("sendPreviewTarget");
+  select.replaceChildren();
+  for (let i = 0; i < mailQueue.length; i++) {
+    const opt = document.createElement("option");
+    opt.value = String(i);
+    opt.textContent = sendPreviewLabel(mailQueue[i]);
+    select.appendChild(opt);
+  }
+  $("sendPreviewSection").classList.toggle("hidden", !mailQueue.length);
+}
+
+function selectedSendPreviewEntry() {
+  const idx = Number($("sendPreviewTarget").value);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= mailQueue.length) {
+    return null;
+  }
+  return mailQueue[idx];
+}
+
+function showResults(people, title, statusMessage) {
+  lastPeople = people;
+  mailQueue = buildMailQueue(lastPeople);
+  mailQueueIndex = 0;
+  resultsTitle.textContent = title;
+  renderRecipientList(lastPeople);
+  populateSendPreviewTargets();
+  resultsSection.classList.remove("hidden");
+  setStatus(statusMessage, "ok");
+}
+
+async function scanRsvp(audience) {
+  if (pageMode !== "event") {
+    setStatus("Open a calendar event page first.", "error");
+    return;
+  }
+
+  setStatus("Scanning RSVPs…");
   setScanButtonsDisabled(true);
   resultsSection.classList.add("hidden");
-  lastPeople = [];
-  mailQueue = [];
-  mailQueueIndex = 0;
 
   try {
     const tab = await getActiveTab();
-    if (!tab.url?.includes("advancements.scouting.org")) {
-      throw new Error("Switch to a ScoutBook+ tab (advancements.scouting.org).");
-    }
-
     const response = await chrome.tabs.sendMessage(tab.id, {
       type: "SCAN_NO_RSVP",
       payload: { audience },
@@ -149,28 +252,79 @@ async function scan(audience) {
     }
 
     const { result } = response;
-    lastPeople = result.people ?? [];
-    mailQueue = buildMailQueue(lastPeople);
-
-    const emailCount = countRecipientEmails(lastPeople);
-    const noEmailRows = lastPeople.filter(
-      (p) => !(p.emails && p.emails.length)
-    ).length;
+    const people = result.people ?? [];
+    const emailCount = countRecipientEmails(people);
+    const noEmailRows = people.filter((p) => !(p.emails && p.emails.length)).length;
     const label = audience === "youth" ? "Youths" : "All";
 
-    resultsTitle.textContent = `${label}: ${result.noRsvpCount} no RSVP · ${emailCount} addresses`;
-    renderRecipientList(lastPeople);
-    resultsSection.classList.remove("hidden");
-
-    setStatus(
-      `“${result.eventMeta.eventName}”: ${result.noRsvpCount} people, ${emailCount} emails (${noEmailRows} with none on file).`,
-      "ok"
+    showResults(
+      people,
+      `${label}: ${result.noRsvpCount} no RSVP · ${emailCount} addresses`,
+      `“${result.eventMeta.eventName}”: ${result.noRsvpCount} no RSVP, ${emailCount} emails (${noEmailRows} rows with none).`
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     setStatus(msg, "error");
   } finally {
     setScanButtonsDisabled(false);
+  }
+}
+
+async function scanBalances() {
+  if (pageMode !== "balances") {
+    setStatus("Open Unit Payment Logs or Balance Messaging first.", "error");
+    return;
+  }
+
+  setStatus("Scanning balances…");
+  setScanButtonsDisabled(true);
+  resultsSection.classList.add("hidden");
+
+  try {
+    const tab = await getActiveTab();
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: "SCAN_DELINQUENT_BALANCES",
+      payload: {},
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Balance scan failed.");
+    }
+
+    const { result } = response;
+    const people = result.people ?? [];
+    const emailCount = countRecipientEmails(people);
+
+    showResults(
+      people,
+      `${result.delinquentCount} delinquent · ${emailCount} addresses`,
+      `${result.unitName}: ${result.delinquentCount} with balance > $0, ${emailCount} emails.`
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    setStatus(msg, "error");
+  } finally {
+    setScanButtonsDisabled(false);
+  }
+}
+
+function renderRecipientList(people) {
+  recipientList.replaceChildren();
+  for (const p of people) {
+    const li = document.createElement("li");
+    const recs = p.recipients ?? [];
+    const balanceLine =
+      p.balanceFormatted != null && p.balanceFormatted !== ""
+        ? `<div class="meta balance">Balance: ${escapeHtml(String(p.balanceFormatted))}</div>`
+        : "";
+    const emailHtml = recs.length
+      ? recs.map((r) => formatRecipientLine(r)).join("<br>")
+      : '<span class="warn">no email on file</span>';
+    const tag = p.isAdult ? "" : ' <span class="meta">(youth)</span>';
+    li.innerHTML = `<div class="name">${escapeHtml(p.fullName || p.firstName)}${tag}</div>
+      ${balanceLine}
+      <div class="meta">${emailHtml}</div>`;
+    recipientList.appendChild(li);
   }
 }
 
@@ -185,21 +339,6 @@ function formatRecipientLine(r) {
   return escapeHtml(r.email);
 }
 
-function renderRecipientList(people) {
-  recipientList.replaceChildren();
-  for (const p of people) {
-    const li = document.createElement("li");
-    const recs = p.recipients ?? [];
-    const emailHtml = recs.length
-      ? recs.map((r) => formatRecipientLine(r)).join("<br>")
-      : '<span class="warn">no email on file</span>';
-    const tag = p.isAdult ? "" : ' <span class="meta">(youth)</span>';
-    li.innerHTML = `<div class="name">${escapeHtml(p.fullName || p.firstName)}${tag}</div>
-      <div class="meta">${emailHtml}</div>`;
-    recipientList.appendChild(li);
-  }
-}
-
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -209,9 +348,11 @@ function escapeHtml(s) {
 }
 
 function templateForPerson(person) {
-  const subject = renderTemplate(subjectEl.value, person);
-  const body = renderTemplate(bodyEl.value, person);
-  return { subject, body };
+  const { subject, body } = activeTemplateFields();
+  return {
+    subject: renderTemplate(subject.value, person),
+    body: renderTemplate(body.value, person),
+  };
 }
 
 function mailtoUrl(to, subject, body) {
@@ -264,11 +405,104 @@ async function copyBcc() {
   setStatus(`Copied ${emails.length} addresses (comma-separated).`, "ok");
 }
 
-$("saveTemplate").addEventListener("click", () => saveTemplate());
-$("previewTemplate").addEventListener("click", () => previewWithMyInfo());
-$("scanYouth").addEventListener("click", () => scan("youth"));
-$("scanAll").addEventListener("click", () => scan("all"));
+function viewSendPreview() {
+  const entry = selectedSendPreviewEntry();
+  if (!entry) {
+    setStatus("Run a scan first.", "error");
+    return;
+  }
+
+  const { person, email, role } = entry;
+  const { subject, body } = templateForPerson(person);
+
+  $("previewAs").textContent = `Send preview for ${person.fullName || person.firstName} → ${email} (${role})`;
+  $("previewSubject").textContent = subject;
+  $("previewBody").textContent = body;
+  $("previewSection").classList.remove("hidden");
+  setStatus("Exact outbound subject and body.", "ok");
+}
+
+async function emailSendPreviewToMe() {
+  const entry = selectedSendPreviewEntry();
+  if (!entry) {
+    setStatus("Run a scan first.", "error");
+    return;
+  }
+
+  try {
+    const tab = await getActiveTab();
+    const contactRes = await chrome.tabs.sendMessage(tab.id, {
+      type: "GET_SIGNED_IN_CONTACT",
+      payload: {},
+    });
+    if (!contactRes?.ok) {
+      throw new Error(contactRes?.error || "Could not load your email.");
+    }
+
+    const { email: myEmail } = contactRes.result;
+    const { person } = entry;
+    const { subject, body } = templateForPerson(person);
+
+    chrome.tabs.create({
+      url: mailtoUrl(myEmail, subject, body),
+    });
+    setStatus("Opened a draft to your email with the preview.", "ok");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    setStatus(msg, "error");
+  }
+}
+
+async function previewSample() {
+  setStatus("Building preview…");
+
+  try {
+    const tab = await getActiveTab();
+    if (!tab.url?.includes("advancements.scouting.org")) {
+      throw new Error("Open ScoutBook+ in this tab.");
+    }
+
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: "GET_PREVIEW_TEMPLATE_VARS",
+      payload: {},
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not build preview.");
+    }
+
+    const { vars, signedInAs } = response.result;
+    const { subject, body } = activeTemplateFields();
+    const renderedSubject = renderTemplate(subject.value, vars);
+    const renderedBody = renderTemplate(body.value, vars);
+
+    const who = `Sample recipient: ${vars.fullName} <${vars.email}>`;
+    $("previewAs").textContent = signedInAs
+      ? `${who} · Signed in as ${signedInAs}`
+      : who;
+    $("previewSubject").textContent = renderedSubject;
+    $("previewBody").textContent = renderedBody;
+    $("previewSection").classList.remove("hidden");
+
+    setStatus("Sample recipient preview (not from scan).", "ok");
+  } catch (err) {
+    $("previewSection").classList.add("hidden");
+    const msg = err instanceof Error ? err.message : String(err);
+    setStatus(msg, "error");
+  }
+}
+
+initStaticCopy();
+loadTemplates().then(() => refreshPageContext());
+
+$("saveTemplateRsvp").addEventListener("click", () => saveTemplate("rsvp"));
+$("saveTemplateBalance").addEventListener("click", () => saveTemplate("balance"));
+$("previewTemplateRsvp").addEventListener("click", () => previewSample());
+$("previewTemplateBalance").addEventListener("click", () => previewSample());
+$("scanYouth").addEventListener("click", () => scanRsvp("youth"));
+$("scanAll").addEventListener("click", () => scanRsvp("all"));
+$("scanBalances").addEventListener("click", () => scanBalances());
 $("openMail").addEventListener("click", () => openNextMail());
 $("copyBcc").addEventListener("click", () => copyBcc());
-
-loadTemplate();
+$("viewSendPreview").addEventListener("click", () => viewSendPreview());
+$("emailSendPreviewToMe").addEventListener("click", () => emailSendPreviewToMe());

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ScoutBook+ RSVP Helper",
-  "version": "0.2.1",
-  "description": "List invitees with no RSVP and draft reminder emails from templates.",
+  "name": "Scoutmaster",
+  "version": "0.4.0",
+  "description": "RSVP and balance reminder emails for ScoutBook+ with templates.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
     "https://advancements.scouting.org/*",
@@ -11,7 +11,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "ScoutBook+ RSVP Helper"
+    "default_title": "Scoutmaster"
   },
   "content_scripts": [
     {

@@ -3,49 +3,86 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ScoutBook+ RSVP Helper</title>
+    <title>Scoutmaster</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <h1>RSVP reminders</h1>
-      <p class="hint">Open an event page, then scan for invitees with no RSVP.</p>
-    </header>
-
-    <section class="templates">
-      <h2>Email template</h2>
-      <p class="placeholders" id="placeholderHelp"></p>
-      <label>
-        Subject
-        <input type="text" id="subject" autocomplete="off" />
-      </label>
-      <label>
-        Body
-        <textarea id="body" rows="8"></textarea>
-      </label>
-      <div class="template-actions">
-        <button type="button" id="saveTemplate" class="secondary">Save template</button>
-        <button type="button" id="previewTemplate" class="secondary">Preview (my info)</button>
-      </div>
-      <section id="previewSection" class="preview hidden" aria-live="polite">
-        <p class="preview-as" id="previewAs"></p>
-        <p class="preview-label">Subject</p>
-        <pre class="preview-block" id="previewSubject"></pre>
-        <p class="preview-label">Body</p>
-        <pre class="preview-block" id="previewBody"></pre>
-      </section>
+    <section id="idlePanel" class="idle-panel hidden">
+      <header>
+        <h1>Scoutmaster</h1>
+        <p class="hint" id="idleHint">
+          Open a ScoutBook+ <strong>event</strong> for RSVP reminders, or
+          <strong>Unit Payment Logs</strong> / Balance Messaging to collect balances.
+        </p>
+      </header>
     </section>
 
-    <section class="actions">
+    <section id="rsvpTool" class="tool-panel hidden">
+      <header>
+        <h1>RSVP reminders</h1>
+        <p class="hint" id="rsvpContextHint">This event — missing RSVPs only.</p>
+      </header>
+
+      <div class="templates">
+        <h2>Email template</h2>
+        <p class="placeholders" id="placeholderHelpRsvp"></p>
+        <p class="hint template-note" id="templateRecipientNoteRsvp"></p>
+        <label>
+          Subject
+          <input type="text" id="subjectRsvp" autocomplete="off" />
+        </label>
+        <label>
+          Body
+          <textarea id="bodyRsvp" rows="7"></textarea>
+        </label>
+        <div class="template-actions">
+          <button type="button" id="saveTemplateRsvp" class="secondary">Save template</button>
+          <button type="button" id="previewTemplateRsvp" class="secondary">Preview sample</button>
+        </div>
+      </div>
+
       <div class="scan-buttons">
         <button type="button" id="scanYouth" class="primary">Scan youths</button>
         <button type="button" id="scanAll" class="primary">Scan all</button>
       </div>
-      <p class="hint scan-hint">
-        Youths: no RSVP — scout + parent emails when allowed. All: every invitee with no RSVP (adults only their email).
-      </p>
-      <p id="status" class="status" aria-live="polite"></p>
     </section>
+
+    <section id="balanceTool" class="tool-panel hidden">
+      <header>
+        <h1>Balance reminders</h1>
+        <p class="hint" id="balanceContextHint">Unit payment logs — balances greater than $0.</p>
+      </header>
+
+      <div class="templates">
+        <h2>Email template</h2>
+        <p class="placeholders" id="placeholderHelpBalance"></p>
+        <p class="hint template-note" id="templateRecipientNoteBalance"></p>
+        <label>
+          Subject
+          <input type="text" id="subjectBalance" autocomplete="off" />
+        </label>
+        <label>
+          Body
+          <textarea id="bodyBalance" rows="7"></textarea>
+        </label>
+        <div class="template-actions">
+          <button type="button" id="saveTemplateBalance" class="secondary">Save template</button>
+          <button type="button" id="previewTemplateBalance" class="secondary">Preview sample</button>
+        </div>
+      </div>
+
+      <button type="button" id="scanBalances" class="primary scan-single">Scan delinquent balances</button>
+    </section>
+
+    <section id="previewSection" class="preview hidden" aria-live="polite">
+      <p class="preview-as" id="previewAs"></p>
+      <p class="preview-label">Subject</p>
+      <pre class="preview-block" id="previewSubject"></pre>
+      <p class="preview-label">Body</p>
+      <pre class="preview-block" id="previewBody"></pre>
+    </section>
+
+    <p id="status" class="status" aria-live="polite"></p>
 
     <section id="resultsSection" class="results hidden">
       <div class="results-header">
@@ -56,6 +93,19 @@
         </div>
       </div>
       <ul id="recipientList"></ul>
+
+      <section id="sendPreviewSection" class="send-preview hidden">
+        <h3>Send preview</h3>
+        <p class="hint">Exact message for one scanned recipient.</p>
+        <label>
+          Outbound message
+          <select id="sendPreviewTarget"></select>
+        </label>
+        <div class="template-actions">
+          <button type="button" id="viewSendPreview" class="secondary">View message</button>
+          <button type="button" id="emailSendPreviewToMe" class="secondary">Email preview to me</button>
+        </div>
+      </section>
     </section>
 
     <script type="module" src="popup.js"></script>

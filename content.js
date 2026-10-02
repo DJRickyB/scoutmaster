@@ -53,8 +53,41 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       );
     return true;
   }
-  if (message?.type === "GET_MY_TEMPLATE_VARS") {
-    callPage("GET_MY_TEMPLATE_VARS", message.payload ?? {})
+  if (message?.type === "GET_PREVIEW_TEMPLATE_VARS") {
+    callPage("GET_PREVIEW_TEMPLATE_VARS", message.payload ?? {})
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((err) =>
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    return true;
+  }
+  if (message?.type === "GET_SIGNED_IN_CONTACT") {
+    callPage("GET_SIGNED_IN_CONTACT", message.payload ?? {})
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((err) =>
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    return true;
+  }
+  if (message?.type === "GET_PAGE_CONTEXT") {
+    callPage("GET_PAGE_CONTEXT", message.payload ?? {})
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((err) =>
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    return true;
+  }
+  if (message?.type === "SCAN_DELINQUENT_BALANCES") {
+    callPage("SCAN_DELINQUENT_BALANCES", message.payload ?? {})
       .then((result) => sendResponse({ ok: true, result }))
       .catch((err) =>
         sendResponse({

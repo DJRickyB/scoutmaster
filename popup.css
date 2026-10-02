@@ -12,10 +12,26 @@ body {
   background: #fafafa;
 }
 
-header h1 {
+.tool-panel.hidden,
+.idle-panel.hidden {
+  display: none;
+}
+
+.tool-panel header h1,
+.idle-panel header h1 {
   margin: 0 0 4px;
   font-size: 16px;
   font-weight: 600;
+}
+
+.scan-single {
+  width: 100%;
+  margin-top: 12px;
+}
+
+body[data-mode="event"] .templates,
+body[data-mode="balances"] .templates {
+  margin-top: 10px;
 }
 
 .hint,
@@ -155,6 +171,33 @@ button:disabled {
   display: none;
 }
 
+.send-preview {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #ddd;
+}
+
+.send-preview.hidden {
+  display: none;
+}
+
+.send-preview h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.send-preview select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+
 .results-header {
   display: flex;
   flex-wrap: wrap;
@@ -200,6 +243,11 @@ button:disabled {
 
 #recipientList .warn {
   color: #a33;
+}
+
+#recipientList .balance {
+  font-weight: 600;
+  color: #333;
 }
 
 .status.error {

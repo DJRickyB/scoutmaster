@@ -69,10 +69,56 @@
     };
   }
 
-  async function apiGet(path) {
-    const url = path.startsWith("http")
+  function appPath() {
+    const { pathname, hash } = location;
+    if (hash && hash.startsWith("#/")) {
+      return hash.slice(1).split("?")[0];
+    }
+    return pathname;
+  }
+
+  function detectPageContext() {
+    const path = appPath();
+    const eventMatch = path.match(/\/calendar\/event\/(\d+)/);
+    if (eventMatch) {
+      return { mode: "event", eventId: eventMatch[1], path };
+    }
+    if (
+      /^\/(balance-messaging|unitPaymentLogs|paymentLogs)(\/|$)/.test(path)
+    ) {
+      return { mode: "balances", eventId: null, path };
+    }
+    return { mode: "general", eventId: null, path };
+  }
+
+  function balanceQueryParams() {
+    const to = new Date();
+    const toDate = to.toISOString().slice(0, 10);
+    const from = new Date(to);
+    from.setFullYear(from.getFullYear() - 15);
+    return { fromDate: from.toISOString().slice(0, 10), toDate };
+  }
+
+  function formatMoney(amount) {
+    const n = Number(amount);
+    if (!Number.isFinite(n)) return "";
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: "USD",
+    }).format(n);
+  }
+
+  async function apiGet(path, queryParams) {
+    let url = path.startsWith("http")
       ? path
       : `https://api.scouting.org${path}`;
+    if (queryParams && Object.keys(queryParams).length) {
+      const u = new URL(url);
+      for (const [key, value] of Object.entries(queryParams)) {
+        if (value != null && value !== "") u.searchParams.set(key, String(value));
+      }
+      url = u.toString();
+    }
 
     let token = requireToken();
     let res = await fetch(url, {
@@ -98,7 +144,7 @@
   }
 
   function parseEventId() {
-    const m = location.pathname.match(/\/calendar\/event\/(\d+)/);
+    const m = appPath().match(/\/calendar\/event\/(\d+)/);
     return m ? m[1] : null;
   }
 
@@ -304,7 +350,7 @@
     return deduped;
   }
 
-  async function getCurrentUserTemplateVars() {
+  async function resolveActiveOrgGuid() {
     const token = requireToken();
     const res = await fetch(
       "https://auth.scouting.org/api/users/auth/refresh",
@@ -319,44 +365,194 @@
       }
     );
     if (!res.ok) {
-      throw new Error("Could not load your ScoutBook+ profile (session refresh failed).");
+      throw new Error("Could not read your unit context.");
     }
     const session = await res.json();
-    const profile = session.profile ?? {};
-    const firstName = profile.firstName ?? "";
-    const lastName = profile.lastName ?? "";
-    const middleName = profile.middleName ?? "";
-    const fullName = [firstName, middleName, lastName]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
-    let email = session.membership?.email ?? "";
-    let nickName = "";
-
     const personGuid = session.personGuid;
-    if (personGuid) {
-      const pp = await fetchProfileCached(personGuid, new Map());
-      if (pp) {
-        const pe = primaryEmail(pp);
-        if (pe) email = pe;
-        const p = pp.profile ?? pp;
-        nickName = p.nickName ?? "";
-      }
+    if (!personGuid) {
+      throw new Error("No personGuid on session.");
     }
 
+    const pp = await apiGet(`/persons/v2/${personGuid}/personprofile`);
+    const positions = pp.organizationPositions ?? [];
+    const unit =
+      positions.find((p) => p.organizationGuid) ?? positions[0] ?? null;
+
+    const orgGuid = unit?.organizationGuid;
+    if (!orgGuid) {
+      throw new Error(
+        "Could not determine unit. Open ScoutBook+ with your troop selected."
+      );
+    }
+
+    const unitName =
+      unit?.organizationName ?? unit?.unitName ?? unit?.unitNumber ?? "";
+
+    return { orgGuid, unitName, personGuid };
+  }
+
+  function rosterUsers(response) {
+    if (Array.isArray(response)) return response;
+    return response?.users ?? [];
+  }
+
+  function balanceByMemberId(balanceRows) {
+    const rows = Array.isArray(balanceRows) ? balanceRows : [];
+    const map = new Map();
+    for (const row of rows) {
+      if (!row?.memberId) continue;
+      const balance = row.balanceDetails?.balance ?? row.balance ?? 0;
+      map.set(String(row.memberId), Number(balance));
+    }
+    return map;
+  }
+
+  async function scanDelinquentBalances() {
+    const ctx = detectPageContext();
+    if (ctx.mode !== "balances") {
+      throw new Error(
+        "Open Unit Payment Logs or Balance Messaging (/balance-messaging or /unitPaymentLogs)."
+      );
+    }
+
+    const { orgGuid, unitName } = await resolveActiveOrgGuid();
+    const params = balanceQueryParams();
+
+    const [balanceRows, youthsRes, adultsRes] = await Promise.all([
+      apiGet(`/advancements/v2/organization/${orgGuid}/balanceDetails`, params),
+      apiGet(`/organizations/v2/units/${orgGuid}/youths`),
+      apiGet(`/organizations/v2/units/${orgGuid}/adults`),
+    ]);
+
+    const balances = balanceByMemberId(balanceRows);
+    const members = [
+      ...rosterUsers(youthsRes).map((u) => ({ ...u, isAdult: false })),
+      ...rosterUsers(adultsRes).map((u) => ({ ...u, isAdult: true })),
+    ];
+
+    const delinquent = members.filter((m) => {
+      const bal = balances.get(String(m.memberId)) ?? 0;
+      return bal > 0;
+    });
+
+    const profileCache = new Map();
+    const unitMeta = { unitName, balanceAmount: "", balanceFormatted: "" };
+
+    const people = await mapWithConcurrency(delinquent, 3, async (member) => {
+      const firstName = member.firstName ?? "";
+      const lastName = member.lastName ?? "";
+      const fullName = [firstName, member.middleName, lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      const balance = balances.get(String(member.memberId)) ?? 0;
+      const balanceFormatted = formatMoney(balance);
+
+      const user = {
+        userId: member.userId,
+        personGuid: member.personGuid,
+        firstName,
+        lastName,
+        nickName: member.nickName ?? "",
+        noEmails: member.noEmails ?? false,
+        isAdult: member.isAdult,
+      };
+
+      const recipients = await resolveRecipients(user, profileCache);
+      const emails = recipients.map((r) => r.email);
+
+      return {
+        userId: user.userId,
+        personGuid: user.personGuid,
+        firstName,
+        lastName,
+        nickName: user.nickName,
+        fullName,
+        isAdult: user.isAdult,
+        balance,
+        balanceAmount: String(balance),
+        balanceFormatted,
+        recipients,
+        email: emails[0] ?? null,
+        emails,
+        ...unitMeta,
+        balanceAmount: String(balance),
+        balanceFormatted,
+      };
+    });
+
+    return {
+      scanType: "balances",
+      orgGuid,
+      unitName,
+      delinquentCount: delinquent.length,
+      rosterCount: members.length,
+      people,
+    };
+  }
+
+  const SAMPLE_RECIPIENT = {
+    firstName: "Jamie",
+    lastName: "Example",
+    fullName: "Jamie Example",
+    nickName: "",
+    email: "family@example.com",
+    balanceAmount: "25.00",
+    balanceFormatted: "$25.00",
+  };
+
+  async function getSignedInContact() {
+    const token = requireToken();
+    const res = await fetch(
+      "https://auth.scouting.org/api/users/auth/refresh",
+      {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          Accept: "application/json; version = 1",
+          "Content-Type": "application/json; version = 1",
+          Authorization: `bearer ${token}`,
+        },
+      }
+    );
+    if (!res.ok) {
+      throw new Error("Could not read your ScoutBook+ session.");
+    }
+    const session = await res.json();
+    const p = session.profile ?? {};
+    const fullName = [p.firstName, p.middleName, p.lastName]
+      .filter(Boolean)
+      .join(" ");
+    let email = session.membership?.email ?? "";
+    const personGuid = session.personGuid;
+    if (personGuid && !email) {
+      const pp = await fetchProfileCached(personGuid, new Map());
+      const pe = pp ? primaryEmail(pp) : null;
+      if (pe) email = pe;
+    }
+    if (!email) {
+      throw new Error("No email on your ScoutBook+ profile for preview delivery.");
+    }
+    return { email, fullName };
+  }
+
+  async function getPreviewTemplateVars() {
     const vars = {
-      firstName,
-      lastName,
-      fullName,
-      nickName,
-      email,
+      ...SAMPLE_RECIPIENT,
+      unitName: "",
       eventName: "",
       eventDate: "",
       eventLocation: "",
       eventId: "",
       eventUrl: "",
     };
+
+    try {
+      const org = await resolveActiveOrgGuid();
+      vars.unitName = org.unitName ?? "";
+    } catch {
+      /* optional */
+    }
 
     const eventId = parseEventId();
     if (eventId) {
@@ -370,15 +566,19 @@
         vars.eventLocation = event.location ?? "";
         vars.eventId = String(eventId);
       } catch {
-        /* preview still works without event context */
+        /* optional */
       }
     }
 
-    return {
-      vars,
-      personGuid: personGuid ?? null,
-      userId: session.account?.userId ?? null,
-    };
+    let signedInAs = "";
+    try {
+      const contact = await getSignedInContact();
+      signedInAs = contact.fullName;
+    } catch {
+      /* optional */
+    }
+
+    return { vars, signedInAs };
   }
 
   async function scanEventNoRsvp(eventId, audience = "all") {
@@ -464,8 +664,50 @@
         return;
       }
 
-      if (type === "GET_MY_TEMPLATE_VARS") {
-        const result = await getCurrentUserTemplateVars();
+      if (type === "GET_PREVIEW_TEMPLATE_VARS") {
+        const result = await getPreviewTemplateVars();
+        window.postMessage(
+          {
+            source: SOURCE_PAGE,
+            requestId,
+            ok: true,
+            result,
+          },
+          "*"
+        );
+        return;
+      }
+
+      if (type === "GET_SIGNED_IN_CONTACT") {
+        const result = await getSignedInContact();
+        window.postMessage(
+          {
+            source: SOURCE_PAGE,
+            requestId,
+            ok: true,
+            result,
+          },
+          "*"
+        );
+        return;
+      }
+
+      if (type === "GET_PAGE_CONTEXT") {
+        const page = detectPageContext();
+        window.postMessage(
+          {
+            source: SOURCE_PAGE,
+            requestId,
+            ok: true,
+            result: page,
+          },
+          "*"
+        );
+        return;
+      }
+
+      if (type === "SCAN_DELINQUENT_BALANCES") {
+        const result = await scanDelinquentBalances();
         window.postMessage(
           {
             source: SOURCE_PAGE,
