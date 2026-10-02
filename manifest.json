@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "ScoutBook+ RSVP Helper",
+  "version": "0.2.1",
+  "description": "List invitees with no RSVP and draft reminder emails from templates.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://advancements.scouting.org/*",
+    "https://api.scouting.org/*",
+    "https://auth.scouting.org/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ScoutBook+ RSVP Helper"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://advancements.scouting.org/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["https://advancements.scouting.org/*"]
+    }
+  ]
+}

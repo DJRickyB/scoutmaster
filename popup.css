@@ -1,0 +1,211 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 12px 14px 16px;
+  width: 380px;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 13px;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+header h1 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hint,
+.placeholders,
+.status {
+  margin: 0 0 8px;
+  color: #555;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+section {
+  margin-top: 14px;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+input[type="text"],
+textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.template-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.template-actions .secondary {
+  flex: 1;
+  min-width: 120px;
+}
+
+.preview {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.preview.hidden {
+  display: none;
+}
+
+.preview-as {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #333;
+}
+
+.preview-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.preview-block {
+  margin: 0 0 10px;
+  padding: 8px;
+  border-radius: 4px;
+  background: #f4f6f8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  padding: 8px 12px;
+}
+
+.scan-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.scan-buttons .primary {
+  flex: 1;
+}
+
+.scan-hint {
+  margin-top: 8px;
+}
+
+button.primary {
+  background: #003366;
+  color: #fff;
+  width: 100%;
+}
+
+button.secondary {
+  background: #fff;
+  border-color: #ccc;
+  color: #222;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.actions {
+  margin-top: 12px;
+}
+
+.results.hidden {
+  display: none;
+}
+
+.results-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.result-actions {
+  display: flex;
+  gap: 6px;
+}
+
+#recipientList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+}
+
+#recipientList li {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 12px;
+}
+
+#recipientList li:last-child {
+  border-bottom: none;
+}
+
+#recipientList .name {
+  font-weight: 600;
+}
+
+#recipientList .meta {
+  color: #666;
+}
+
+#recipientList .warn {
+  color: #a33;
+}
+
+.status.error {
+  color: #a33;
+}
+
+.status.ok {
+  color: #2d6a4f;
+}
