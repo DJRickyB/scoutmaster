@@ -260,7 +260,6 @@
         `/persons/v2/${youthGuid}/relationships?includeIneligibles=false`
       );
       for (const rel of normalizeRelationships(relData)) {
-        if (!isParentRelationship(rel)) continue;
         if (rel.noEmails === true) continue;
         const pg = relatedPersonGuid(rel);
         if (pg) guids.push({ personGuid: pg, label: parentLabel(rel), rel });
