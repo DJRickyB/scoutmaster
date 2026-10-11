@@ -97,7 +97,7 @@ function applyUiMode(context) {
 
   if (onEvent) {
     $("rsvpContextHint").textContent = eventId
-      ? `Event ${eventId} — invitees with no RSVP (rsvpCode empty).`
+      ? `Event ${eventId} — invitees with no RSVP (rsvpCode empty) or Maybe.`
       : "This event — invitees with no RSVP.";
   }
 
