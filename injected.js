@@ -153,7 +153,9 @@
     return `https://advancements.scouting.org/calendar/event/${eventId}`;
   }
 
-  const PARENT_RELATIONSHIP_TYPES = new Set([1, 2]); // FatherOf, MotherOf
+  // ScoutBook enums: FatherOf=1, MotherOf=2, SonOf=3, DaughterOf=4.
+  // Youth /relationships often lists type 3/4 ("Son/Daughter of") with personGuid = parent.
+  const PARENT_RELATIONSHIP_TYPES = new Set([1, 2, 3, 4]);
 
   function profileAllowsEmail(profileJson) {
     const profile = profileJson.profile ?? profileJson;
@@ -182,7 +184,16 @@
     const typeId = Number(
       rel.relationshipTypeId ?? rel.relationshipType?.id ?? rel.typeId
     );
-    return PARENT_RELATIONSHIP_TYPES.has(typeId);
+    if (PARENT_RELATIONSHIP_TYPES.has(typeId)) return true;
+    const text = `${rel.relationship ?? ""} ${rel.relationshipToYouth ?? ""}`
+      .toLowerCase()
+      .trim();
+    if (!text) return false;
+    return (
+      /\b(parent\/guardian|parent|guardian|father|mother)\b/.test(text) ||
+      text.includes("daughter of") ||
+      text.includes("son of")
+    );
   }
 
   function relatedPersonGuid(rel) {
@@ -196,10 +207,12 @@
   }
 
   function parentLabel(rel) {
+    if (rel.relationship) return rel.relationship;
+    if (rel.relationshipToYouth) return rel.relationshipToYouth;
     const typeId = Number(rel.relationshipTypeId ?? rel.typeId);
     if (typeId === 1) return "Father";
     if (typeId === 2) return "Mother";
-    return rel.relationship ?? rel.relationshipToYouth ?? "Parent";
+    return "Parent";
   }
 
   function formatEventDate(iso) {
@@ -253,8 +266,29 @@
     }
   }
 
+  function parentsFromProfileInfo(profile) {
+    const info = profile?.parentsGuardiansInfo;
+    if (!Array.isArray(info)) return [];
+    const out = [];
+    for (const p of info) {
+      if (p.noEmails === true) continue;
+      const pg = p.personGuid ?? p.parentPersonGuid ?? p.guardianPersonGuid;
+      if (!pg) continue;
+      out.push({
+        personGuid: pg,
+        label:
+          p.relationshipToYouth ?? p.relationship ?? p.type ?? "Parent/Guardian",
+        rel: p,
+      });
+    }
+    return out;
+  }
+
   async function parentGuidsForYouth(youthGuid, cache) {
     const guids = [];
+    const profile = await fetchProfileCached(youthGuid, cache);
+    guids.push(...parentsFromProfileInfo(profile));
+
     try {
       const relData = await apiGet(
         `/persons/v2/${youthGuid}/relationships?includeIneligibles=false`
@@ -266,26 +300,7 @@
         if (pg) guids.push({ personGuid: pg, label: parentLabel(rel), rel });
       }
     } catch {
-      /* fall back to profile block */
-    }
-
-    if (guids.length === 0) {
-      const profile = await fetchProfileCached(youthGuid, cache);
-      const info = profile?.parentsGuardiansInfo;
-      if (Array.isArray(info)) {
-        for (const p of info) {
-          if (p.noEmails === true) continue;
-          const pg =
-            p.personGuid ?? p.parentPersonGuid ?? p.guardianPersonGuid;
-          if (pg) {
-            guids.push({
-              personGuid: pg,
-              label: p.relationship ?? p.type ?? "Parent",
-              rel: p,
-            });
-          }
-        }
-      }
+      /* relationships optional if profile listed parents */
     }
 
     const seen = new Set();
@@ -436,8 +451,6 @@
     });
 
     const profileCache = new Map();
-    const unitMeta = { unitName, balanceAmount: "", balanceFormatted: "" };
-
     const people = await mapWithConcurrency(delinquent, 3, async (member) => {
       const firstName = member.firstName ?? "";
       const lastName = member.lastName ?? "";
@@ -475,9 +488,7 @@
         recipients,
         email: emails[0] ?? null,
         emails,
-        ...unitMeta,
-        balanceAmount: String(balance),
-        balanceFormatted,
+        unitName,
       };
     });
 
