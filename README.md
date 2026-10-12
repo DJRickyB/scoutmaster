@@ -17,7 +17,7 @@ The popup switches tools based on where you are in ScoutBook+ (including hash ro
 
 | Page | Tool |
 |------|------|
-| Calendar **event** (`/calendar/event/{id}`) | **RSVP reminders** — scan invitees with no RSVP (`rsvpCode` empty); optional youth-only scan; resolves scout and parent emails when allowed. |
+| Calendar **event** (`/calendar/event/{id}`) | **RSVP reminders** — scan invitees with no RSVP (`rsvpCode` empty) or a Maybe response; optional youth-only scan; resolves scout and parent emails when allowed. |
 | **Unit Payment Logs** or **Balance Messaging** | **Balance reminders** — scan roster members with balance &gt; $0 (see warning below). |
 | Other ScoutBook+ pages | Idle message — navigate to an event or payment screen. |
 

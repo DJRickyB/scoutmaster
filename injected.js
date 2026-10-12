@@ -215,7 +215,7 @@
   }
 
   function isEligibleForScan(user, audience) {
-    if (user.rsvpCode != null) return false;
+    if (user.rsvpCode === "Y" || user.rsvpCode === "N") return false;
     if (audience === "youth" && user.isAdult) return false;
     if (user.isAdult && user.noEmails) return false;
     return true;
