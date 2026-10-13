@@ -1,49 +1,81 @@
 # Scoutmaster
 
-Chrome extension for [ScoutBook+](https://advancements.scouting.org) that helps unit leaders email families about **missing RSVPs** and (experimentally) **outstanding balances**.
+A Chrome extension for [ScoutBook+](https://advancements.scouting.org) that helps unit leaders send reminder emails about **missing or tentative RSVPs** and, experimentally, **outstanding unit balances**.
 
-It runs only while you are logged into ScoutBook+ in your browser. It uses the same session and APIs the web app uses—no separate credentials are stored in the extension.
+Scoutmaster is an **unofficial** community tool. It is not affiliated with, endorsed by, or supported by the Boy Scouts of America or ScoutBook+.
 
-## Install (developer / unpacked)
+## What it does
 
-1. Clone this repo.
-2. Open `chrome://extensions` → enable **Developer mode**.
-3. **Load unpacked** and select this folder.
-4. Open ScoutBook+ and **refresh the tab** after installing or updating the extension.
+- Reads event and roster data from ScoutBook+ using **your existing browser session** (no separate login or stored passwords).
+- Finds invitees who have not answered **Yes** or **No** (including blank RSVPs and **Maybe**).
+- Resolves email addresses for scouts and parents/guardians when ScoutBook+ allows email contact.
+- Lets you customize subject and body templates with placeholders, then open drafts in your mail client (one at a time or BCC lists).
 
-## How it behaves (by page)
+All processing happens in your browser while you are on ScoutBook+.
 
-The popup switches tools based on where you are in ScoutBook+ (including hash routes like `#/unitPaymentLogs`):
+## Requirements
 
-| Page | Tool |
-|------|------|
-| Calendar **event** (`/calendar/event/{id}`) | **RSVP reminders** — scan invitees with no RSVP (`rsvpCode` empty) or a Maybe response; optional youth-only scan; resolves scout and parent emails when allowed. |
-| **Unit Payment Logs** or **Balance Messaging** | **Balance reminders** — scan roster members with balance &gt; $0 (see warning below). |
-| Other ScoutBook+ pages | Idle message — navigate to an event or payment screen. |
+- Google Chrome (or another Chromium browser that supports Manifest V3 extensions)
+- A ScoutBook+ account with permission to view the event or unit data you are working with
+- You must be **logged in** on [advancements.scouting.org](https://advancements.scouting.org)
 
-## Workflow
+## Install
 
-1. Edit and **save** the email template for that mode (placeholders are filled **per recipient** when sending).
-2. Run the appropriate **scan**.
-3. **Copy BCC**, **open mail one by one**, or use **send preview** to draft a message to yourself.
+Scoutmaster is distributed as source you load as an **unpacked** extension:
 
-Templates support placeholders such as `{{firstName}}`, `{{eventName}}`, `{{eventUrl}}`, `{{balanceFormatted}}`, etc. Sign with your own name as plain text in the template body.
+1. Download or clone this repository.
+2. Open `chrome://extensions`.
+3. Turn on **Developer mode**.
+4. Click **Load unpacked** and choose the project folder.
+5. Open ScoutBook+ and **refresh the tab** after installing or updating.
 
-## ⚠️ Balance / payment feature (untested)
+## Using Scoutmaster
 
-The **balance collection** path is a **best-effort, completely untested placeholder**:
+Click the Scoutmaster icon in the toolbar. The popup shows different tools depending on which ScoutBook+ page is active (including hash routes such as `#/unitPaymentLogs`).
 
-- API calls were inferred from the ScoutBook+ front-end bundle, not from a verified spec or HAR on your unit’s payment screens.
-- Delinquent logic is currently **balance &gt; $0** on `balanceDetails` merged with unit roster data—this may not match how your troop defines “owes” in the UI.
-- Date ranges, permissions, and response shapes may differ by council, unit, or app version.
+| Where you are in ScoutBook+ | What you can do |
+| --- | --- |
+| Calendar **event** (`/calendar/event/{id}`) | **RSVP reminders** — scan invitees without a firm Yes/No; optional youth-only scan; parent emails when available. |
+| **Unit Payment Logs** or **Balance Messaging** | **Balance reminders** — scan members with balance &gt; $0 (experimental; see below). |
+| Any other ScoutBook+ page | Open an event or payment screen first. |
 
-**Use RSVP mode for production workflows.** Treat balance mode as experimental until you validate results against ScoutBook+ and adjust the code if needed.
+Typical workflow:
 
-## Privacy
+1. Edit the email template for that mode and click **Save**.
+2. Run **Scan youths**, **Scan all**, or the balance scan as appropriate.
+3. Use **Copy BCC**, **Open mail one by one**, or **Send preview** (draft to yourself) to send from your own email account.
 
-- Operates only on `advancements.scouting.org` with your existing login.
-- Do not commit HAR files or session exports; they contain live tokens and member PII.
+Placeholders such as `{{firstName}}`, `{{eventName}}`, `{{eventUrl}}`, and `{{balanceFormatted}}` are filled **per recipient** when you send. Add your name as plain text in the template body.
 
-```bash
-GIT_SSH_COMMAND='ssh -i ~/.ssh/djrickyb -o IdentitiesOnly=yes' git push
-```
+### RSVP template placeholders
+
+`{{firstName}}`, `{{lastName}}`, `{{fullName}}`, `{{nickName}}`, `{{email}}`, `{{eventName}}`, `{{eventDate}}`, `{{eventLocation}}`, `{{eventId}}`, `{{eventUrl}}`
+
+### Balance template placeholders
+
+`{{firstName}}`, `{{lastName}}`, `{{fullName}}`, `{{email}}`, `{{unitName}}`, `{{balanceAmount}}`, `{{balanceFormatted}}`
+
+## Balance reminders (experimental)
+
+The balance feature is **best-effort and lightly tested**. It may not match how your unit defines “owes money” in ScoutBook+.
+
+- API usage is inferred from the ScoutBook+ web app, not from a published API specification.
+- Delinquent members are currently anyone with **balance &gt; $0** in the merged roster/balance response.
+- Councils, units, roles, and app versions can change behavior or permissions.
+
+**Prefer RSVP mode for day-to-day use.** Validate balance scan results against ScoutBook+ before emailing families, and adjust templates or code if your unit needs different rules.
+
+## Privacy and security
+
+- Scoutmaster only runs on `advancements.scouting.org` and related ScoutBook+ API hosts while you use the extension.
+- Session tokens stay in your browser’s ScoutBook+ storage, same as the website.
+- Email content is composed locally; sending uses your normal mail client.
+- Do not publish HAR captures, screenshots of API responses, or exports that contain live tokens or youth/adult PII.
+
+## Contributing
+
+Issues and pull requests are welcome. After cloning, load the folder as an unpacked extension to test changes, bump the version in `manifest.json` when you ship an update, and refresh ScoutBook+ in the browser.
+
+## License
+
+No license file is included yet; treat the repository as all rights reserved unless the owner adds an open-source license.
