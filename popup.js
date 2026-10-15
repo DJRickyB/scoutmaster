@@ -193,8 +193,8 @@ function sendPreviewLabel(entry) {
   const role =
     entry.role === "parent"
       ? "parent"
-      : entry.role === "scout"
-        ? "scout"
+      : entry.role === "self"
+        ? "adult"
         : "recipient";
   return `${name} → ${entry.email} (${role})`;
 }
@@ -333,8 +333,8 @@ function formatRecipientLine(r) {
     const rel = r.relationship ? ` (${r.relationship})` : "";
     return `Parent${rel}: ${escapeHtml(r.email)}`;
   }
-  if (r.role === "scout") {
-    return `Scout: ${escapeHtml(r.email)}`;
+  if (r.role === "self") {
+    return `Adult: ${escapeHtml(r.email)}`;
   }
   return escapeHtml(r.email);
 }

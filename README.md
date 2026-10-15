@@ -8,7 +8,7 @@ Scoutmaster is an **unofficial** community tool. It is not affiliated with, endo
 
 - Reads event and roster data from ScoutBook+ using **your existing browser session** (no separate login or stored passwords).
 - Finds invitees who have not answered **Yes** or **No** (including blank RSVPs and **Maybe**).
-- Resolves email addresses for scouts and parents/guardians when ScoutBook+ allows email contact.
+- Resolves parent/guardian emails for youths and the member’s own email for adults when ScoutBook+ allows contact.
 - Lets you customize subject and body templates with placeholders, then open drafts in your mail client (one at a time or BCC lists).
 
 All processing happens in your browser while you are on ScoutBook+.
@@ -35,7 +35,7 @@ Click the Scoutmaster icon in the toolbar. The popup shows different tools depen
 
 | Where you are in ScoutBook+ | What you can do |
 | --- | --- |
-| Calendar **event** (`/calendar/event/{id}`) | **RSVP reminders** — scan invitees without a firm Yes/No; optional youth-only scan; parent emails when available. |
+| Calendar **event** (`/calendar/event/{id}`) | **RSVP reminders** — scan invitees without a firm Yes/No; optional youth-only scan; emails go to parents/guardians for youths and to the adult member for adults. |
 | **Unit Payment Logs** or **Balance Messaging** | **Balance reminders** — scan members with balance &gt; $0 (experimental; see below). |
 | Any other ScoutBook+ page | Open an event or payment screen first. |
 

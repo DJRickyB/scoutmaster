@@ -315,18 +315,6 @@
     const recipients = [];
     const guid = user.personGuid;
 
-    if (!user.isAdult && !user.noEmails) {
-      const profile = await fetchProfileCached(guid, cache);
-      const email = profile ? primaryEmail(profile) : null;
-      if (email) {
-        recipients.push({
-          role: "scout",
-          email,
-          name: user.firstName ?? "",
-        });
-      }
-    }
-
     if (!user.isAdult) {
       const parents = await parentGuidsForYouth(guid, cache);
       for (const parent of parents) {
